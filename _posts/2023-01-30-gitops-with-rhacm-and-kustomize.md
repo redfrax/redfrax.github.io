@@ -4,6 +4,8 @@ title:  "*DRAFT* GitOps Using RHACM, Policy Generator and Kustomize"
 date:   2023-01-30 16:50:00 +0100
 toc: true
 categories: [OpenShift,GitOps]
+image: https://tadviser.com/images/thumb/1/16/Red_Hat_Advanced_Cluster_Management_for_Kubernetes_2.3.png/840px-Red_Hat_Advanced_Cluster_Management_for_Kubernetes_2.3.png
+optimized_image: https://tadviser.com/images/thumb/1/16/Red_Hat_Advanced_Cluster_Management_for_Kubernetes_2.3.png/840px-Red_Hat_Advanced_Cluster_Management_for_Kubernetes_2.3.png
 tags: [OpenShift,GitOps,RHACM,kustomize,policygenerator]
 ---
 
