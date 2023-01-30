@@ -25,7 +25,7 @@ github_username:  redfrax
 # Build settings
 markdown: kramdown
 #theme: minima
-theme: jekflix
+remote_theme: thiagorossener/jekflix-template
 plugins:
   - jekyll-feed
 
