@@ -24,7 +24,8 @@ github_username:  redfrax
 
 # Build settings
 markdown: kramdown
-theme: minima
+#theme: minima
+theme: jekflix
 plugins:
   - jekyll-feed
 
