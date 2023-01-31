@@ -20,7 +20,8 @@ So, using it in a production environment with out proper fitting and test is dis
 ### <a name="Hreq"></a>Requirements
 
 To test this configuration you need a RHACM Installation and to generate manifests locally you need to have the [kustomize tool](https://kubectl.docs.kubernetes.io/installation/kustomize/) installed on your local machine.  
-Furthermore a basic knowledge of [RHACM Governance Policy engine](https://access.redhat.com/documentation/en-us/red_hat_advanced_cluster_management_for_kubernetes/2.6/html-single/governance/index) is advisable.
+To use the policy generator plug-in, this one has to be installed as well following [this procedure](https://github.com/stolostron/policy-generator-plugin#installation).  
+Furthermore a basic knowledge of [RHACM Governance Policy engine](https://access.redhat.com/documentation/en-us/red_hat_advanced_cluster_management_for_kubernetes/2.6/html-single/governance/index) and **Kustomize overlays** is advisable.
 
 ## <a name="Hpolstruct"></a>Structure of a goverance policy
 
@@ -106,12 +107,14 @@ spec:
         remediationAction: enforce
         severity: low
 ```
+*Sample file [here]()*
+
 The one above is a simple governance policy used to enforce the replicas and thread count configuration of the ingress routers. As you can see, mainly, a policy is composed by three parts, a placement rule, a placement binding and the policy itself where the configuration template to apply is wrapped.  
 Out of 62 lines, only 8 lines are related to the actual cluster configuration.  
 It would be great to have a tool that let us focus just on the payload development with out having to care about all the wrapping part.  
 Here the kustomize policy generator plug-in comes helping us.
 
-## Using the Policy Generator Plug-In
+## <a name="Hpolgen"></a>Using the Policy Generator Plug-In
 By using the policy generator plug-in for kustomize you can focus on the configuration manifests.  
 In this case, just the ingress controller manifest is needed:
 ```yaml
@@ -157,6 +160,9 @@ policies:
 Inside the base or overlay directory the file *kustomization.yaml* with a reference to the *PolicyGenerator* configuration, must exists:
 ```yaml
 # File kustomization.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
 generators: 
   - policy-generator-config.yaml
 ```
@@ -169,4 +175,107 @@ tree
     ├── kustomization.yaml
     └── policy-generator-config.yaml
 ```
-If the [requirements](#Hreq)
+*Sample files [here]()*
+
+If the [requirements](#Hreq) are met, by executing the command
+```bash
+kustomize build --enable-alpha-plugins <your-path-to-dir>/sample-policy-generator-test
+```
+The same governance policy structure, we analyzed [before](#Hpolstruct), should have been created.
+
+## Bringing Kustomize overlays into the game (here comes the issue)
+In real use cases we're going to have several environments and cluster types to manage. So we have the need to leverage the use of kustomize overlays to customize the configuration manifests depending on which cluster type or environments we are targeting.
+Let's customize our ingress controller configuration in case of a production cluster rising replicas to 6 and thread count for the single router to 8. 
+
+To do that we try to use a classic base/overlays Kustomize directories structure organized as follow:
+```bash
+tree
+.
+├── bases
+│   ├── ingress-router-conf-payload.yaml
+│   ├── kustomization.yaml
+│   └── policy-generator-config.yaml
+└── overlays
+    ├── devel
+    │   ├── ingress-router-conf-payload.yaml
+    │   └── kustomization.yaml
+    └── prod
+        ├── ingress-router-conf-payload.yaml
+        └── kustomization.yaml
+```
+*Sample files [here]()*
+
+Inside the *bases* dir we have a generalized version of the policy generator configuration we have seen [before](#Hpolgen).  
+Then we have the overlay dirs for development and production environments, in both cases we added the reference to the *bases* dir, an environments specific name suffix and a file to patch the policy for each environment.
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Reference to bases dir
+resources: 
+  - ../../bases
+# Suffix to add to metadata name
+nameSuffix: -prod
+# File used for patching the policy
+patchesStrategicMerge:
+  - ingress-router-conf-payload.yaml
+```
+**BUT** if we go to check the patching file for the overlay, we'll get a bad surprise
+```yaml
+# Policy patching
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: pol-ingr-router
+  namespace: policy-test
+...
+...
+            kind: IngressController
+            metadata:
+              name: default
+              namespace: openshift-ingress-operator
+            spec:
+              replicas: 6
+              tuningOptions:
+                threadCount: 8
+...
+...
+---
+# Placement rule patching
+apiVersion: apps.open-cluster-management.io/v1
+kind: PlacementRule
+metadata:
+  name: placement-test
+  namespace: policy-test
+spec:
+  clusterSelector:
+    matchExpressions:
+    - key: environment
+      operator: In
+      values:
+      - prod
+---
+# Placement binding patching
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: binding-pol-ingr-router
+  namespace: policy-test
+placementRef:
+  apiGroup: apps.open-cluster-management.io
+  kind: PlacementRule
+  name: placement-test-prod
+subjects:
+- apiGroup: policy.open-cluster-management.io
+  kind: Policy
+  name: pol-ingr-router-prod
+```
+As you can see, patching **ALL** the policy parts has been needed due to a couple of reasons:
+- *nameSuffix* directive adds the suffix only to the *name* field under the *metadata*, this changes the objects names, but does **NOT** change their references inside the placement binding resulting in a broken governance policy for RHACM
+- Policy creation takes effect before the patching step, so you need to patch the resulting policy template and not the original payload manifest for the ingress controller. 
+- If you had patched the original payload manifest, kustomize would have not managed to match the customized resource and you would have got the following error
+```bash
+Error: no matches for Id IngressController.v1.operator.openshift.io/default.openshift-ingress-operator; failed to find unique target for patch IngressController.v1.operator.openshift.io/default.openshift-ingress-operator
+```
+**As a result, using this kind of strategy forces us to get a step back and work again with the wrapping part of the policy instead of just paying attention to the configuration payload, it's prone to error, hard to maintain, hard to automate, definitely not advisable**
+
+## The two-stage approach
