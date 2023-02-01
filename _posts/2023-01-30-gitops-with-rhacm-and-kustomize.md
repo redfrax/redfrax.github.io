@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "*DRAFT* GitOps Using RHACM, Policy Generator and Kustomize"
+title:  "GitOps Using RHACM, Policy Generator and Kustomize"
 date:   2023-01-30 16:50:00 +0100
 toc: true
 categories: [OpenShift,GitOps]
@@ -13,9 +13,9 @@ In this article I'm just going to share one of the possible implementation for *
 The purpose is to highlight some issues that could arise while trying to use both [Kustomize](https://kustomize.io/) and the [Policy Generator](https://github.com/stolostron/policy-generator-plugin) at the same time, and to provide a possible mitigation.
 
 **DISCLAIMER**: This is just a mean to show a possible GitOps directory hierarchy concept while using a combination of Kustomize and Policy Generator.  
-So, using it in a production environment with out proper fitting and test is discouraged and at your own risk.
+So, using it in a production environment with out proper fitting and testing is discouraged and at your own risk.
 
-![RHACM GitOps](https://tadviser.com/images/thumb/1/16/Red_Hat_Advanced_Cluster_Management_for_Kubernetes_2.3.png/840px-Red_Hat_Advanced_Cluster_Management_for_Kubernetes_2.3.png)
+![RHACM GitOps](https://raw.githubusercontent.com/redfrax/post-gitops-rhacm-kustomize-polgen/main/post_image.png)
 
 ### <a name="Hreq"></a>Requirements
 
@@ -107,7 +107,7 @@ spec:
         remediationAction: enforce
         severity: low
 ```
-*Sample file [here]()*
+*Sample file [here](https://github.com/redfrax/post-gitops-rhacm-kustomize-polgen/blob/main/sample-standalone-policy/pol-ingr-router-devel.yaml)*
 
 The one above is a simple governance policy used to enforce the replicas and thread count configuration of the ingress routers. As you can see, mainly, a policy is composed by three parts, a placement rule, a placement binding and the policy itself where the configuration template to apply is wrapped.  
 Out of 62 lines, only 8 lines are related to the actual cluster configuration.  
@@ -175,7 +175,7 @@ tree
     ├── kustomization.yaml
     └── policy-generator-config.yaml
 ```
-*Sample files [here]()*
+*Sample files [here](https://github.com/redfrax/post-gitops-rhacm-kustomize-polgen/tree/main/sample-policy-generator-test)*
 
 If the [requirements](#Hreq) are met, by executing the command
 ```bash
@@ -203,7 +203,7 @@ tree
         ├── ingress-router-conf-payload.yaml
         └── kustomization.yaml
 ```
-*Sample files [here]()*
+*Sample files [here](https://github.com/redfrax/post-gitops-rhacm-kustomize-polgen/tree/main/sample-base-overlays)*
 
 Inside the *bases* dir we have a generalized version of the policy generator configuration we have seen [before](#Hpolgen).  
 Then we have the overlay dirs for development and production environments, in both cases we added the reference to the *bases* dir, an environments specific name suffix and a file to patch the policy for each environment.
@@ -279,3 +279,92 @@ Error: no matches for Id IngressController.v1.operator.openshift.io/default.open
 **As a result, using this kind of strategy forces us to get a step back and work again with the wrapping part of the policy instead of just paying attention to the configuration payload, it's prone to error, hard to maintain, hard to automate, definitely not advisable**
 
 ## The two-stage approach
+If you want to keep focusing just on the configuration manifests, one of the possible solutions is to a two-stage approach as the one implemented by the following directory tree:
+```bash
+tree
+.
+├── bases
+│   ├── ingress-router-conf-payload.yaml
+│   └── kustomization.yaml
+├── overlays
+│   ├── devel
+│   │   └── kustomization.yaml
+│   └── prod
+│       ├── ingress-router-conf-payload.yaml
+│       └── kustomization.yaml
+├── policies-generators
+│   ├── devel
+│   │   ├── customized-config-manifest.yaml
+│   │   ├── kustomization.yaml
+│   │   └── policy-generator-config.yaml
+│   └── prod
+│       ├── customized-config-manifest.yaml
+│       ├── kustomization.yaml
+│       └── policy-generator-config.yaml
+└── simple-manifest-refreshing-script.sh
+```
+*Sample files [here](https://github.com/redfrax/post-gitops-rhacm-kustomize-polgen/tree/main/sample-two-stage)*
+
+The very first two dirs (*bases,overlays*) implement only the classic kustomize bases/overlays logic but working just with the pure configuration manifests, inside those dirs there's nothing at all related to policy generation.
+```yaml
+## File overlays/prod/ingress-router-conf-payload.yaml
+## just patching the production configuration replicas and threadcount
+##
+ apiVersion: operator.openshift.io/v1
+ kind: IngressController
+ metadata:
+   name: default
+   namespace: openshift-ingress-operator
+ spec:
+   replicas: 6
+   tuningOptions:
+     threadCount: 8
+```
+```yaml
+## File overlays/prod/kustomization.yaml
+## Just patching the default base yaml with the one reported above specific to prod
+##
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources: 
+  - ../../bases
+
+patchesStrategicMerge:
+  - ingress-router-conf-payload.yaml
+```
+The script *simple-manifest-refreshing-script.sh* represents the automation bridging the two stages, in this particular case, it just refreshes (using kustomize itself) the environment specific configuration manifests contained inside the dirs *policies-generators/devel and policies-generators/prod*. So, after you have developed the needed configuration files inside the bases/overlays dirs, you just have to run this script to refresh the manifests used by the policy generator during the second step.  
+Even if the script is very simple in this case, it can become complex at will, by accommodating all the features needed by your specific use case, for example, it could take a configuration file to customize the policies specs inside the policy generator file.
+With this process the environments specific files are generated inside the related dir *policies-generators/devel and policies-generators/prod*, where they are referenced in each environment specific policy generator.
+Those dirs are going to be the natural targets for RHACM *subscriptions* that will take care of generating the governance policies using the built-in kustomize plug-in and applying them to the right clusters based on their placement selectors.
+```yaml
+## File policies-generators/devel/policy-generator-config.yaml
+## Defines the spec for devel environment and reference the proper manifest
+##
+apiVersion: policy.open-cluster-management.io/v1
+kind: PolicyGenerator
+metadata:
+  name: test-devel-pol-generator
+#policy spec
+policyDefaults:
+  namespace: policy-test
+  remediationAction: enforce
+  placement:
+    name: placement-devel-test
+    clusterSelectors:
+      environment: devel
+placementBindingDefaults:
+  name: "binding-devel-test"
+policies:
+    #policy for devel environment
+  - name: conf-pol-devel
+    manifests:
+        # reference to the specific devel manifest refreshed by the script
+      - path: customized-config-manifest.yaml
+```
+## Conclusion
+We have seen a couple of ways to implement GitOps using RHACM and the *Kustomize Policy Generator*, in particular, we found that using a single step approach leads to some collaterals, that can be avoided by using a more advisable two-stage process which lets us:
+- focusing just on the configuration payload during the developement
+- having a less error prone development process
+- keeping the process easier to automate and scale with the needed granularity
+- having a more maintainable dir hierarchy

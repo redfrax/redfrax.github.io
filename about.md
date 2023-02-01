@@ -3,16 +3,7 @@ layout: page
 title: About
 permalink: /about/
 ---
-
-This is the base Jekyll theme. You can find out more info about customizing your Jekyll theme, as well as basic Jekyll usage documentation at [jekyllrb.com](https://jekyllrb.com/)
-
-You can find the source code for Minima at GitHub:
-[jekyll][jekyll-organization] /
-[minima](https://github.com/jekyll/minima)
-
-You can find the source code for Jekyll at GitHub:
-[jekyll][jekyll-organization] /
-[jekyll](https://github.com/jekyll/jekyll)
-
-
-[jekyll-organization]: https://github.com/jekyll
+I'm a cloud and infrastructure consultant working for [Red Hat](https://www.redhat.com).  
+Currently my scope is delivering Red Hat technologies both at customers premises and on cloud, having Openshift Container Platform as the main focus.  
+Working closely with customers and helping them during the journey of the automation process are other satisfying aspects of my job.  
+There's no need to say I'm a tech enthusiast always seeking new tech trends, but I'm also a sport shooter and guns lover.
