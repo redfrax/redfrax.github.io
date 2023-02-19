@@ -9,7 +9,7 @@ tags: [OpenShift,GitOps,RHACM,kustomize,policygenerator]
 
 ## Introduction
 
-In this article, I'm just going to share one of the possible implementations for **GitOps** using **RHACM**.
+In this article, I'm just going to share one of the possible implementations for **GitOps** using [Red Hat Advanced Cluster Management for Kubernetes](https://www.redhat.com/en/technologies/management/advanced-cluster-management) (**RHACM**).
 The purpose is to highlight some issues that could arise while trying to use both [Kustomize](https://kustomize.io/) and the [Policy Generator](https://github.com/stolostron/policy-generator-plugin) at the same time and to provide a possible mitigation.
 
 **DISCLAIMER**: This is just a means to show a possible GitOps directory hierarchy concept while using a combination of Kustomize and Policy Generator.  
