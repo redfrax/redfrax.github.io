@@ -1,6 +1,6 @@
 ---
 layout: post
-title:  "GitOps Using RHACM, Policy Generator and Kustomize"
+title:  "GitOps Using Red Hat Advanced Cluster Management, Policy Generator and Kustomize"
 date:   2023-01-30 16:50:00 +0100
 toc: true
 categories: [OpenShift,GitOps]
@@ -25,7 +25,12 @@ Furthermore, a basic knowledge of the [RHACM Governance Policy Engine](https://a
 
 ## <a name="Hpolstruct"></a>Structure of a Governance Policy
 
-Let's start by analyzing the basic structure of a very simple governance policy:
+Let's start by analyzing the basic structure of a very simple governance policy.  
+The policy reported below is used to enforce the replicas and thread count configuration of the ingress routers. As you can see, a policy is composed of mainly three parts: a placement rule, a placement binding, and the policy itself, where the configuration template to apply is wrapped.  
+Out of 62 lines, only 8 lines are related to the actual cluster configuration.  
+It would be great to have a tool that lets us focus just on the payload development without having to worry about all the wrapping.  
+Here the Kustomize policy generator plug-in comes in handy.
+
 ```yaml
 ##
 ## PlacementRule defines target clusters using labels as cluster selectors
@@ -108,11 +113,6 @@ spec:
         severity: low
 ```
 *Sample file [here](https://github.com/redfrax/post-gitops-rhacm-kustomize-polgen/blob/main/sample-standalone-policy/pol-ingr-router-devel.yaml)*
-
-The one above is a simple governance policy used to enforce the replicas and thread count configuration of the ingress routers. As you can see, a policy is composed of mainly three parts: a placement rule, a placement binding, and the policy itself, where the configuration template to apply is wrapped.  
-Out of 62 lines, only 8 lines are related to the actual cluster configuration.  
-It would be great to have a tool that lets us focus just on the payload development without having to worry about all the wrapping.  
-Here the Kustomize policy generator plug-in comes in handy.
 
 ## <a name="Hpolgen"></a>Using the Policy Generator Plug-In
 By using the policy generator plug-in for Kustomize, you can focus on the configuration manifests.  
