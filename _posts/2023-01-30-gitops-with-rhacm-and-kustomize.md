@@ -12,23 +12,23 @@ tags: [OpenShift,GitOps,RHACM,kustomize,policygenerator]
 In this article, I'm just going to share one of the possible implementations for **GitOps** using [Red Hat Advanced Cluster Management for Kubernetes](https://www.redhat.com/en/technologies/management/advanced-cluster-management) (**RHACM**).
 The purpose is to highlight some issues that could arise while trying to use both [Kustomize](https://kustomize.io/) and the [Policy Generator](https://github.com/stolostron/policy-generator-plugin) at the same time and to provide a possible mitigation.
 
-**DISCLAIMER**: This is just a means to show a possible GitOps directory hierarchy concept while using a combination of Kustomize and Policy Generator.  
+**DISCLAIMER**: This is just a means to show a possible GitOps directory hierarchy concept while using a combination of Kustomize and Policy Generator.\
 So, using it in a production environment with out proper fitting and testing is discouraged and at your own risk.
 
 ![RHACM GitOps](https://raw.githubusercontent.com/redfrax/post-gitops-rhacm-kustomize-polgen/main/post_image.png)
 
 ### <a name="Hreq"></a>Requirements
 
-To test this configuration, you need a RHACM installation, and to generate manifests locally, you need to have the [Kustomize tool](https://kubectl.docs.kubernetes.io/installation/kustomize/) installed on your local machine.  
-To use the policy generator plug-in, this one has to be installed as well, following [this procedure](https://github.com/stolostron/policy-generator-plugin#installation).  
+To test this configuration, you need a RHACM installation, and to generate manifests locally, you need to have the [Kustomize tool](https://kubectl.docs.kubernetes.io/installation/kustomize/) installed on your local machine.\
+To use the policy generator plug-in, this one has to be installed as well, following [this procedure](https://github.com/stolostron/policy-generator-plugin#installation).\
 Furthermore, a basic knowledge of the [RHACM Governance Policy Engine](https://access.redhat.com/documentation/en-us/red_hat_advanced_cluster_management_for_kubernetes/2.6/html-single/governance/index) and **Kustomize overlays** is advisable.
 
 ## <a name="Hpolstruct"></a>Structure of a Governance Policy
 
-Let's start by analyzing the basic structure of a very simple governance policy.  
-The policy reported below is used to enforce the replicas and thread count configuration of the ingress routers. As you can see, a policy is composed of mainly three parts: a placement rule, a placement binding, and the policy itself, where the configuration template to apply is wrapped.  
-Out of 62 lines, only 8 lines are related to the actual cluster configuration.  
-It would be great to have a tool that lets us focus just on the payload development without having to worry about all the wrapping.  
+Let's start by analyzing the basic structure of a very simple governance policy.\
+The policy reported below is used to enforce the replicas and thread count configuration of the ingress routers. As you can see, a policy is composed of mainly three parts: a placement rule, a placement binding, and the policy itself, where the configuration template to apply is wrapped.\
+Out of 62 lines, only 8 lines are related to the actual cluster configuration.\
+It would be great to have a tool that lets us focus just on the payload development without having to worry about all the wrapping.\
 Here the Kustomize policy generator plug-in comes in handy.
 
 ```yaml
@@ -115,7 +115,7 @@ spec:
 *Sample file [here](https://github.com/redfrax/post-gitops-rhacm-kustomize-polgen/blob/main/sample-standalone-policy/pol-ingr-router-devel.yaml)*
 
 ## <a name="Hpolgen"></a>Using the Policy Generator Plug-In
-By using the policy generator plug-in for Kustomize, you can focus on the configuration manifests.  
+By using the policy generator plug-in for Kustomize, you can focus on the configuration manifests.\
 In this case, just the ingress controller manifest is needed:
 ```yaml
 # File ingress-router-conf-payload.yaml
@@ -205,7 +205,7 @@ tree
 ```
 *Sample files [here](https://github.com/redfrax/post-gitops-rhacm-kustomize-polgen/tree/main/sample-base-overlays)*
 
-Inside the "*bases*" directory, we have a generalized version of the policy generator configuration we have seen [before](#Hpolgen).  
+Inside the "*bases*" directory, we have a generalized version of the policy generator configuration we have seen [before](#Hpolgen).\
 Then we have the overlay directories for development and production environments; in both cases, we added the reference to the "*bases*" directory, an environment specific name suffix, and a file to patch the policy for each environment.
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
@@ -333,7 +333,7 @@ resources:
 patchesStrategicMerge:
   - ingress-router-conf-payload.yaml
 ```
-The script *simple-manifest-refreshing-script.sh* represents the automation bridging the two stages; in this particular case, it just refreshes (using Kustomize itself) the environment specific configuration manifests contained inside the directories *policies-generators/devel and policies-generators/prod*. So, after you have developed the needed configuration files inside the *bases* and *overlays* directories, you just have to run this script to refresh the manifests used by the policy generator during the second step.  
+The script *simple-manifest-refreshing-script.sh* represents the automation bridging the two stages; in this particular case, it just refreshes (using Kustomize itself) the environment specific configuration manifests contained inside the directories *policies-generators/devel and policies-generators/prod*. So, after you have developed the needed configuration files inside the *bases* and *overlays* directories, you just have to run this script to refresh the manifests used by the policy generator during the second step.\
 Even if the script is very simple in this case, it can become complex at will by accommodating all the features needed by your specific use case. For example, it could take a configuration file to customize the policy specs inside the policy generator file.
 With this process, the environment specific files are generated inside the related directories, *policies-generators/devel and policies-generators/prod*, where they are referenced in each environment specific policy generator.
 Those directories are going to be the natural targets for RHACM *subscriptions* that will take care of generating the governance policies using the built-in Kustomize plug-in and applying them to the right clusters based on their placement selectors.
